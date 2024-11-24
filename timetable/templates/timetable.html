@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="en">
+{% load timetable_extras %}
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Timetable Management</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha3/dist/js/bootstrap.bundle.min.js"></script>
+
+    <style>
+        /* Existing Styles */
+        body {
+            font-family: 'Arial', sans-serif;
+            background-color: #f4f6f9;
+        }
+        h2 {
+            margin: 20px 0;
+            text-transform: uppercase;
+            font-weight: bold;
+            color: #343a40;
+        }
+        table {
+            margin-top: 20px;
+            width: 100%;
+            border-collapse: collapse;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            background-color: #fff;
+        }
+        th, td {
+            text-align: center;
+            vertical-align: middle;
+            border: 1px solid #dee2e6;
+        }
+        th {
+            background-color: #000;
+            color: #fff;
+            font-size: 14px;
+            text-transform: uppercase;
+            padding: 15px;
+        }
+        .time-slot {
+            background-color: #000;
+            color: #fff;
+            font-weight: bold;
+            font-size: 16px;
+            text-align: center;
+        }
+        .year-section {
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            border-radius: 5px;
+            margin: 5px 0;
+            font-size: 12px;
+            font-weight: bold;
+            color: white;
+            cursor: pointer;
+        }
+        .year-1 { background-color: #007bff; }
+        .year-2 { background-color: #28a745; }
+        .year-3 { background-color: #ffc107; color: #343a40; }
+        .year-4 { background-color: #dc3545; }
+        .empty {
+            background-color: #e9ecef;
+            color: #6c757d;
+            font-style: italic;
+            border-radius: 5px;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        #error-message {
+            display: none;
+            color: red;
+            margin-bottom: 10px;
+        }
+        .side-section {
+            margin-top: 20px;
+            padding: 20px;
+            background-color: #fff;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            border-radius: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container my-4">
+        <h2 class="text-center">Timetable Management System</h2>
+        <!-- Timetable Table -->
+        <table class="table">
+            <thead>
+                <tr>
+                    <th style="color: black;">Time Slots</th>
+                    <th style="color: black;">Monday</th>
+                    <th style="color: black;">Tuesday</th>
+                    <th style="color: black;">Wednesday</th>
+                    <th style="color: black;">Thursday</th>
+                    <th style="color: black;">Friday</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for time_slot in time_slots %}
+                <tr>
+                    <td class="time-slot align-middle" style="color: black;">{{ time_slot }}</td>
+                    {% for day in weekdays %}
+                    <td class="timetable-cell">
+                        {% for year in years %}
+                        {% with timetable_data|get_item:day|get_item:time_slot|get_item:year as entry %}
+                        {% if entry %}
+                        <div 
+                            class="year-section year-{{ forloop.counter }}" 
+                            data-bs-toggle="modal" 
+                            data-bs-target="#editModal" 
+                            data-date="{{ day }}" 
+                            data-timeslot="{{ time_slot }}" 
+                            data-year="{{ year }}" 
+                            data-subject="{{ entry.subject_lecturer.subject.id }}" 
+                            data-lecturer="{{ entry.subject_lecturer.lecturer.id }}" 
+                            data-hall="{{ entry.hall.id }}"
+                            data-id="{{ entry.id }}">
+                            {{ year }}<br>{{ entry.subject_lecturer.subject }}<br>{{ entry.subject_lecturer.lecturer }}<br>{{ entry.hall }}
+                        </div>
+                        {% else %}
+                        <div 
+                            class="year-section empty" 
+                            data-bs-toggle="modal" 
+                            data-bs-target="#editModal" 
+                            data-date="{{ day }}" 
+                            data-timeslot="{{ time_slot }}" 
+                            data-year="{{ year }}">
+                            {{ year }} - [Click to Edit]
+                        </div>
+                        {% endif %}
+                        {% endwith %}
+                        {% endfor %}
+                    </td>
+                    {% endfor %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <!-- Workload Monitoring Section -->
+        <div class="side-section">
+            <h4>Workload Monitoring</h4>
+            <ul>
+                {% for lecturer in lecturers %}
+                <li>{{ lecturer.name }} ({{ lecturer.role }}): Allocated: {{ lecturer.allocated_hours }} / {{ lecturer.weekly_limit }} hours</li>
+                {% endfor %}
+            </ul>
+        </div>
+
+        <!-- Leave Request Section -->
+        <div class="side-section">
+            <h4>Leave Request</h4>
+            <form id="leaveRequestForm">
+                <div class="mb-3">
+                    <label for="leaveLecturer" class="form-label">Select Lecturer</label>
+                    <select id="leaveLecturer" name="lecturer" class="form-select">
+                        {% for lecturer in lecturers %}
+                        <option value="{{ lecturer.id }}">{{ lecturer.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label for="leaveDay" class="form-label">Day</label>
+                    <select id="leaveDay" name="day" class="form-select">
+                        {% for day in weekdays %}
+                        <option value="{{ day }}">{{ day }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label for="leaveTimeSlot" class="form-label">Time Slot</label>
+                    <select id="leaveTimeSlot" name="time_slot" class="form-select">
+                        {% for slot in time_slots %}
+                        <option value="{{ slot }}">{{ slot }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label for="leaveSubject" class="form-label">Subject</label>
+                    <select id="leaveSubject" name="subject" class="form-select">
+                        {% for subject in subjects %}
+                        <option value="{{ subject.id }}">{{ subject.subject_name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <button type="button" class="btn btn-primary" onclick="submitLeaveRequest()">Find Replacement</button>
+            </form>
+            <div id="replacementLecturers">
+                <!-- Replacement lecturers will be shown here -->
+            </div>
+
+            <!-- Edit Modal -->
+        <div class="modal fade" id="editModal" tabindex="-1" aria-labelledby="editModalLabel" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="editModalLabel">Edit Timetable Entry</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <form id="editForm">
+                            <div class="mb-3">
+                                <label for="modalYear" class="form-label">Year</label>
+                                <input type="text" class="form-control" id="modalYear" readonly>
+                            </div>
+                            <div class="mb-3">
+                                <label for="modalSubject" class="form-label">Subject</label>
+                                <select class="form-select" id="modalSubject">
+                                    {% for subject in subjects %}
+                                    <option value="{{ subject.id }}" >
+                                        {{ subject.subject_name }}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label for="modalLecturer" class="form-label">Lecturer</label>
+                                <select class="form-select" id="modalLecturer">
+                                    {% for lecturer in lecturers %}
+                                    <option value="{{ lecturer.id }}">{{ lecturer.name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label for="modalHall" class="form-label">Hall</label>
+                                <select class="form-select" id="modalHall">
+                                    {% for hall in halls %}
+                                    <option value="{{ hall.id }}">{{ hall.hall_name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </form>
+                        <div id="editModalMessages">
+                            <!-- Messages will be shown here -->
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                        <button type="button" class="btn btn-primary" onclick="saveChanges()">Save Changes</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+    <script>
+        // Leave Request Feature
+        function submitLeaveRequest() {
+            const form = document.getElementById("leaveRequestForm"); 
+
+            const lecturer = form.querySelector('[name="lecturer"]').value;
+            const day = form.querySelector('[name="day"]').value;
+            const time_slot = form.querySelector('[name="time_slot"]').value;
+            const subject = form.querySelector('[name="subject"]').value;
+
+            fetch("{% url 'find_replacement_lecturer' %}", {
+                method: "POST",
+                body: JSON.stringify({ lecturer, day, time_slot, subject }),
+                headers: {
+                    "Content-Type": "application/json",
+                    "X-CSRFToken": "{{ csrf_token }}",
+                },
+            })
+            .then(response => response.json())
+            .then(data => {
+                const replacementDiv = document.getElementById("replacementLecturers");
+                replacementDiv.innerHTML = "<h5>Available Lecturers:</h5>";
+                if (data.status=='success') {
+                    if (data.replacements.length > 0) {
+                        const list = document.createElement("ul");
+                        data.replacements.forEach(lecturer => {
+                            const item = document.createElement("li");
+                            item.textContent = lecturer.name;
+                            list.appendChild(item);
+                        });
+                        replacementDiv.appendChild(list);
+                    } else {
+                        replacementDiv.innerHTML += "<p>No replacements available.</p>";
+                    }
+                }
+                else {
+                    replacementDiv.innerHTML += "<p>Invalid subject or lecturer combination.</p>";
+                }
+            })
+            .catch(error => console.error("Error:", error));
+        } 
+
+    document.addEventListener("DOMContentLoaded", () => {
+    const editModal = document.getElementById("editModal");
+    const editModalMessagesDiv = document.getElementById("editModalMessages");
+
+    // Clear messages when the modal is opened
+    editModal.addEventListener("show.bs.modal", () => {
+        editModalMessagesDiv.innerHTML = "";
+    });
+
+    // Add event listeners to timetable cells
+    document.querySelectorAll(".year-section").forEach((cell) => { 
+        cell.addEventListener("click", function () {
+            // Extract data attributes from the clicked cell
+            const year = this.getAttribute("data-year");
+            const subject = this.getAttribute("data-subject");
+            const lecturer = this.getAttribute("data-lecturer");
+            const hall = this.getAttribute("data-hall");
+            const date = this.getAttribute("data-date"); 
+            const timeslot = this.getAttribute("data-timeslot"); 
+            const entryId = this.getAttribute("data-id");
+            
+            // Populate the modal fields
+            document.getElementById("modalYear").value = year;
+            document.getElementById("modalSubject").value = subject || "";
+            document.getElementById("modalLecturer").value = lecturer || "";
+            document.getElementById("modalHall").value = hall || "";
+
+            // Store date and timeslot for later use
+            document.getElementById("editForm").setAttribute("data-date", date);
+            document.getElementById("editForm").setAttribute("data-timeslot", timeslot);
+            document.getElementById("editForm").setAttribute("data-id", entryId);
+        });
+    }); 
+    });
+
+    function saveChanges() {
+    const editModalMessagesDiv = document.getElementById("editModalMessages");
+    editModalMessagesDiv.innerHTML += "<p></p>";
+    // Get values from the modal
+    const year = document.getElementById("modalYear").value;
+    const subject = document.getElementById("modalSubject").value;
+    const lecturer = document.getElementById("modalLecturer").value;
+    const hall = document.getElementById("modalHall").value;
+    
+    const form = document.getElementById("editForm");
+    const date = form.getAttribute("data-date");
+    const timeslot = form.getAttribute("data-timeslot");
+    const entryId = form.getAttribute("data-id"); 
+    const modalElement = document.getElementById("editModal");
+    const editModal = bootstrap.Modal.getInstance(modalElement);
+
+    // Hide the modal
+    // editModal.hide();
+
+    // Remove lingering backdrop manually (if necessary)
+    document.querySelectorAll(".modal-backdrop").forEach((backdrop) => {
+        backdrop.remove();
+    });
+
+    // Re-enable scrolling
+    document.body.classList.remove("modal-open");
+    document.body.style.overflow = "auto";
+
+    fetch("{% url 'save_timetable_entry' %}", {
+    method: "POST",
+    headers: {
+        "Content-Type": "application/json",
+        "X-CSRFToken": "{{ csrf_token }}",
+    },
+    body: JSON.stringify({ entryId, year, subject, lecturer, hall, date, timeslot }),
+})
+    .then((response) => response.json())
+    .then((data) => {
+        if (data.status=='success') {
+            editModalMessagesDiv.innerHTML = `<p style="color: green;">${data.message}</p>`;
+            setTimeout(() => location.reload(), 1000);
+            // alert(data.message);
+        } else {
+            editModalMessagesDiv.innerHTML = `<p style="color: red;">${data.message}</p>`;
+            // alert(data.message);
+        }
+        // location.reload(); // Reload to update the timetable
+    })
+    .catch((error) => console.error("Error:", error));
+
+}
+    </script>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
