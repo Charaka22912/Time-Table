@@ -16,8 +16,18 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import include, path
+from timetable.views import login_view
+from timetable.views import register_view,logout_view,timetable_view,save_timetable_entry,find_replacement_lecturer,clear_timetable_entry,workload_monitoring,leave_request
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('', include('timetable.urls')),  # Ensure this import path is correct
+    path("", login_view, name='superuser_login'),
+    path('register-superuser/', register_view, name='register_superuser'),
+    path('timetable/', timetable_view, name="timetable"),
+    path("logout/", logout_view, name="logout"),
+    path("save_timetable_entry/", save_timetable_entry, name="save_timetable_entry"),
+    path("find_replacement_lecturer/", find_replacement_lecturer, name="find_replacement_lecturer"),
+    path("clear_timetable_entry/", clear_timetable_entry, name="clear_timetable_entry"),
+    path("workload_monitoring/", workload_monitoring, name="workload_monitoring"),
+    path("leave_request/", leave_request, name="leave_request"), # Ensure this import path is correct
 ]

@@ -3,7 +3,92 @@ from django.shortcuts import render
 from .models import TimetableEntry, Subject, Lecturer, Hall, SubjectLecturer
 import json
 import pprint
+from django.shortcuts import render,redirect
+from django.contrib.auth import authenticate, login
+from django.contrib import messages
+from django.contrib.auth.models import User
+from django.contrib.auth import logout
+# from django.contrib.auth.decorators import login_required
+from django.http import HttpResponseRedirect
+from django.utils.cache import add_never_cache_headers
+from django.views.decorators.cache import cache_control
 
+
+failed_attempts = {}
+
+@cache_control(no_cache=True, must_revalidate=True, no_store=True)
+# @login_required
+
+def login_view(request):
+    if request.method == 'POST':
+        username = request.POST.get('username')
+        password = request.POST.get('password')
+
+        # Check if the username exists
+        user_exists = User.objects.filter(username=username).exists()
+        if not user_exists:
+            messages.error(request, 'Username does not exist.')
+            return render(request, 'login.html')
+
+        # Authenticate the user
+        user = authenticate(request, username=username, password=password)
+
+        if user is not None:
+            # Successful login
+            login(request, user)
+            failed_attempts.pop(username, None)  # Reset failed attempts for the user
+            return redirect("timetable")  # Redirect to dashboard
+        else:
+            # Increment failed attempts
+            if username in failed_attempts:
+                failed_attempts[username] += 1
+            else:
+                failed_attempts[username] = 1
+
+            # Check if the user has failed 3 times
+            if failed_attempts[username] >= 3:
+                # Delete the user
+                user_to_delete = User.objects.filter(username=username).first()
+                if user_to_delete:
+                    user_to_delete.delete()
+                failed_attempts.pop(username, None)  # Remove from tracking
+                messages.error(request, 'Account deleted due to multiple failed login attempts.')
+            else:
+                messages.error(request, f'Incorrect password. {3 - failed_attempts[username]} attempts remaining.')
+
+    return render(request, 'login.html')
+
+def register_view(request):
+       
+    if request.method == 'POST':
+        username = request.POST.get('username', '').strip()  # Safely get username
+        password = request.POST.get('password', '').strip()  # Safely get password
+        email = request.POST.get('email', '').strip()        # Safely get email
+
+        # Validate the input
+        if not username:
+            messages.error(request, 'Username is required.')
+        elif not password:
+            messages.error(request, 'Password is required.')
+        elif not email:
+            messages.error(request, 'Email is required.')
+        elif User.objects.filter(username=username).exists():
+            messages.error(request, 'Username already exists.')
+        elif User.objects.filter(email=email).exists():
+            messages.error(request, 'Email already exists.')
+        else:
+            # Create superuser
+            User.objects.create_superuser(username=username, email=email, password=password)
+            messages.success(request, 'Superuser created successfully!')
+            return redirect('/')  # Redirect to login page after successful registration
+
+    return render(request, 'register.html')
+
+def logout_view(request):
+    logout(request)  # Logs out the user
+    response = HttpResponseRedirect('/')  # Redirect to the root path
+    add_never_cache_headers(response)  # Clear browser cache
+    return response
 
 def timetable_view(request):
     time_slots = ["8:00 - 10:00", "10:00 - 12:00", "1:00 - 3:00", "3:00 - 5:00"]
