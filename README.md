@@ -1,5 +1,5 @@
 # Time Table Management System
-A web-based Time Table Management System built using the Django framework. This system is designed for managing lecture schedules, monitoring lecturer workloads, and applying for leave, with features to ensure smooth and efficient academic management.
+A Time Table Management System developed using the Django framework, designed to streamline academic operations. The system facilitates efficient scheduling of lectures, monitors lecturer workloads, and provides an integrated platform for managing leave applications, ensuring seamless coordination and effective management of academic activities.
 
 ## Features
 
